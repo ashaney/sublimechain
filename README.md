@@ -1,6 +1,6 @@
 # SublimeChain
 
-The Ultimate AI Assistant with persistent memory, advanced coding capabilities, and dynamic tool discovery. Built on Claude's streaming interface with memory-enhanced interactions that learn and evolve over time.
+The Ultimate AI Assistant with persistent memory, advanced coding capabilities, and dynamic tool discovery. Built on Claude's streaming interface with memory-enhanced interactions that learn and evolve over time. An enhancement of Martin Bowling's excellent ThinkChain repo!
 
 **Created by [Martin Bowling](https://martinbowling.com)** • [GitHub](https://github.com/martinbowling) • [Twitter/X](https://x.com/martinbowling)
 
