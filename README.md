@@ -1,19 +1,39 @@
-# ThinkChain
+# SublimeChain
 
-A Python demonstration project showcasing Claude's advanced capabilities through interleaved thinking, fine-grained tool streaming, and dynamic tool discovery with MCP (Model Context Protocol) integration.
+The Ultimate AI Assistant with persistent memory, advanced coding capabilities, and dynamic tool discovery. Built on Claude's streaming interface with memory-enhanced interactions that learn and evolve over time.
 
 **Created by [Martin Bowling](https://martinbowling.com)** • [GitHub](https://github.com/martinbowling) • [Twitter/X](https://x.com/martinbowling)
 
 ## Overview
 
-ThinkChain demonstrates the power of Claude's streaming interface with advanced features like:
+SublimeChain is the ultimate AI assistant that transcends traditional limitations through:
+
+### 🧠 **Persistent Memory System**
+- **Learns from every interaction** - Remembers your preferences, patterns, and successful solutions
+- **Context-aware responses** - Leverages past conversations to provide better assistance
+- **Pattern recognition** - Identifies successful tool usage patterns and suggests improvements
+- **Cross-session continuity** - Pick up exactly where you left off, days or weeks later
+
+### 💻 **Advanced Coding Capabilities**  
+- **Claude Code SDK integration** - Professional-grade code analysis, generation, and refactoring
+- **Memory-enhanced coding** - Learns your coding style and project patterns
+- **Multi-file project understanding** - Works across entire codebases with intelligent context
+- **Debugging assistance** - Contextual error resolution based on past solutions
+
+### 🔧 **Dynamic Tool Ecosystem**
 - **Interleaved and extended thinking** - Claude thinks through problems step-by-step in real-time
 - **Fine-grained tool streaming** - Watch tools execute with live progress updates
-- **Early interception of tool_use blocks** - Tool results are injected back into Claude's thinking process
-- **Multiple tool calls per turn** - Execute multiple tools simultaneously for complex workflows
-- **Pydantic-validated inputs** - Robust type checking and validation for all tool interactions
+- **Memory-enhanced tool execution** - Tools learn from successful usage patterns
+- **MCP server integration** - GitHub, Tavily, and extensible server ecosystem
+- **Hot-reloadable tools** - Develop and test tools without restarting
 
-The system combines local Python tools with MCP servers to create a unified, extensible tool ecosystem that works seamlessly with Claude's streaming capabilities.
+### ⚡ **Streaming Intelligence**
+- **Real-time thinking visualization** - Watch Claude's reasoning process unfold
+- **Memory context injection** - Relevant past context automatically enhances responses
+- **Tool result integration** - Results are fed back into Claude's thinking process
+- **Concurrent execution** - Multiple tools run simultaneously for complex workflows
+
+The system combines local Python tools, MCP servers, persistent memory, and advanced coding capabilities to create an AI assistant that truly learns and evolves with you.
 
 ## 🚀 Quick Start
 
@@ -21,14 +41,20 @@ The system combines local Python tools with MCP servers to create a unified, ext
 
 ```bash
 # Clone the repository
-git clone https://github.com/martinbowling/ThinkChain.git
-cd ThinkChain
+git clone https://github.com/martinbowling/SublimeChain.git
+cd SublimeChain
 
-# Set up your API key
-echo "ANTHROPIC_API_KEY=your_api_key_here" > .env
+# Set up your API keys
+cat > .env << EOF
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+MEM0_API_KEY=your_mem0_api_key_here
+GITHUB_PERSONAL_ACCESS_TOKEN=your_github_token_here
+TAVILY_API_KEY=your_tavily_api_key_here
+EOF
 
 # Run immediately - uv handles all dependencies automatically!
-uv run thinkchain.py     # Enhanced UI with rich formatting
+uv run sublimechain.py   # 🚀 SublimeChain with full memory capabilities
+uv run thinkchain.py     # Legacy enhanced UI mode
 uv run thinkchain_cli.py # Minimal CLI version  
 uv run run.py            # Smart launcher (auto-detects best UI)
 ```
@@ -37,31 +63,60 @@ uv run run.py            # Smart launcher (auto-detects best UI)
 
 ```bash
 # Clone and set up
-git clone https://github.com/martinbowling/ThinkChain.git
-cd ThinkChain
+git clone https://github.com/martinbowling/SublimeChain.git
+cd SublimeChain
 
 # Install dependencies
 uv pip install -r requirements.txt
 # or: pip install -r requirements.txt
 
-# Set up your API key
-echo "ANTHROPIC_API_KEY=your_api_key_here" > .env
+# Install MCP servers (optional but recommended)
+npm install -g @modelcontextprotocol/server-github
+npm install -g @tavily/mcp-server
 
-# Run the application
+# Set up your API keys
+cat > .env << EOF
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+MEM0_API_KEY=your_mem0_api_key_here
+GITHUB_PERSONAL_ACCESS_TOKEN=your_github_token_here
+TAVILY_API_KEY=your_tavily_api_key_here
+EOF
+
+# Run SublimeChain
+python sublimechain.py   # 🚀 Full SublimeChain experience
 python run.py            # Smart launcher
-python thinkchain.py     # Enhanced UI
+python thinkchain.py     # Legacy enhanced UI
 python thinkchain_cli.py # CLI version
 ```
 
 ## ✨ Key Features
 
-### 🧠 Advanced Thinking Integration
-The core innovation of ThinkChain is how tool execution results are **injected back into Claude's thinking stream**. When Claude calls a tool:
+### 🧠 Persistent Memory System  
+SublimeChain's revolutionary memory system creates truly intelligent, evolving interactions:
 
-1. The tool executes and returns results
-2. Results are immediately fed back into Claude's thinking process
-3. Claude can reason about the results before responding to the user
-4. This creates a natural thinking → tool → thinking → response flow
+1. **Every interaction is remembered** - Conversations, successful solutions, preferences
+2. **Context-aware responses** - Relevant memories are automatically surfaced
+3. **Pattern learning** - Successful tool usage patterns are identified and suggested
+4. **Cross-session continuity** - Continue conversations from days or weeks ago
+5. **Personalized experience** - The AI learns your coding style, preferences, and workflow
+
+### 💻 Advanced Coding Intelligence
+Built-in Claude Code SDK integration provides professional-grade coding assistance:
+
+1. **Memory-enhanced coding** - Learns from your past code patterns and style
+2. **Multi-file project analysis** - Understands entire codebases, not just snippets  
+3. **Intelligent refactoring** - Suggests improvements based on learned best practices
+4. **Contextual debugging** - Leverages memory of similar past issues and solutions
+5. **Architecture guidance** - Recommends patterns based on successful past implementations
+
+### ⚡ Enhanced Thinking Integration
+Building on the core innovation of tool result injection with memory enhancement:
+
+1. **Memory context injection** - Relevant past context enhances Claude's thinking
+2. **Tool execution learning** - Successful patterns are remembered and suggested
+3. **Contextual tool selection** - Memory guides optimal tool choices
+4. **Results fed back** - Tool outputs immediately enhance Claude's reasoning process
+5. **Continuous improvement** - Each interaction makes the system smarter
 
 ### 🔧 Dynamic Tool Discovery
 - **Local Tools**: Automatically discovers Python tools from the `/tools` directory
@@ -152,9 +207,18 @@ User Input → Claude API → Thinking Stream → Tool Detection → Tool Execut
 Response ← Thinking Integration ← Tool Result Injection ← Tool Output
 ```
 
-## 📚 Available Tools
+## 📚 SublimeChain Tool Arsenal
 
-### Local Tools (`/tools` directory)
+### 🚀 Enhanced AI Tools
+
+**💻 Claude Code Integration:**
+- **claudecode**: Professional-grade coding assistant with memory-enhanced patterns
+  - Advanced code generation, refactoring, and debugging
+  - Multi-file project analysis and architecture guidance
+  - Memory-aware suggestions based on past successful solutions
+  - Context-sensitive code review and optimization
+
+### 🛠️ Local Tools (`/tools` directory)
 
 **🌐 Web & Data Tools:**
 - **weathertool**: Real weather data from wttr.in API for any location worldwide
@@ -173,50 +237,108 @@ Response ← Thinking Integration ← Tool Result Injection ← Tool Output
 - **lintingtool**: Runs Ruff linter on Python files to detect and fix code issues
 - **toolcreator**: Dynamically creates new tools based on natural language descriptions
 
-### MCP Server Support
+### 🌐 Enhanced MCP Server Integration
 Configure in `mcp_config.json`:
+- **GitHub**: Repository management, issues, pull requests, and code analysis
+- **Tavily**: Advanced web search and research capabilities  
 - **SQLite**: Database operations and queries
 - **Puppeteer**: Web browser automation
 - **Filesystem**: Advanced file system operations  
-- **Brave Search**: Real web search integration
+- **Brave Search**: Alternative web search integration
 
-## 🎮 Interactive Commands
+## 🎮 SublimeChain Commands
 
-While chatting with Claude, you can use these slash commands:
+While chatting with SublimeChain, you can use these enhanced slash commands:
 
+**🧠 Memory Commands:**
+- `/memory` - Show memory system status and statistics
+- `/forget` - Clear memory for current session
+- `/config memory <on|off>` - Toggle memory features
+
+**🔧 Tool & System Commands:**
+- `/tools` - Browse all available tools by category (local + MCP + enhanced)
 - `/refresh` or `/reload` - Refresh tool discovery (picks up new tools)
-- `/tools` - Browse all available tools by category
-- `/status` - Show comprehensive system status
+- `/status` - Show comprehensive system status including memory stats
 - `/clear` - Clear screen while preserving status bar
-- `/config` - Show current configuration
+
+**⚙️ Configuration Commands:**
+- `/config` - Show current configuration (model, thinking, memory)
 - `/config model <model_name>` - Switch between Claude models (sonnet/opus)
 - `/config thinking <1024-16000>` - Adjust thinking token budget
-- `/help` - Show help information
+- `/config memory <on|off>` - Toggle memory learning and search
+
+**ℹ️ Help & Navigation:**
+- `/help` - Show comprehensive help with SublimeChain features
 - `/exit` or `/quit` - End the conversation
 
 **Legacy Support**: All commands work without the `/` prefix for backward compatibility.
 
-## ⚙️ Configuration
+## ⚙️ SublimeChain Configuration
 
 ### Environment Setup
-Create `.env` file:
+Create `.env` file with all required API keys:
 ```bash
-ANTHROPIC_API_KEY=your_api_key_here
+# Required for core functionality
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Required for memory system  
+MEM0_API_KEY=your_mem0_api_key_here
+
+# Optional for enhanced MCP servers
+GITHUB_PERSONAL_ACCESS_TOKEN=your_github_token_here
+TAVILY_API_KEY=your_tavily_api_key_here
+BRAVE_API_KEY=your_brave_search_api_key_here
+
+# Optional for Claude Code SDK (if using npm-installed version)
+# OPENAI_API_KEY=your_openai_key_here
 ```
 
-### MCP Server Configuration
-Edit `mcp_config.json`:
+**Getting API Keys:**
+- **Anthropic API**: [console.anthropic.com](https://console.anthropic.com)
+- **Mem0 API**: [app.mem0.ai](https://app.mem0.ai) 
+- **GitHub Token**: GitHub Settings → Developer settings → Personal access tokens
+- **Tavily API**: [tavily.com](https://tavily.com)
+- **Brave Search**: [api.search.brave.com](https://api.search.brave.com)
+
+### Enhanced MCP Server Configuration
+Edit `mcp_config.json` for SublimeChain's enhanced capabilities:
 ```json
 {
   "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      },
+      "description": "GitHub repository and issue management",
+      "enabled": true
+    },
+    "tavily": {
+      "command": "npx", 
+      "args": ["-y", "@tavily/mcp-server"],
+      "env": {
+        "TAVILY_API_KEY": ""
+      },
+      "description": "Advanced web search and research",
+      "enabled": true
+    },
     "sqlite": {
       "command": "uvx",
       "args": ["mcp-server-sqlite", "--db-path", "./database.db"],
+      "description": "SQLite database operations",
       "enabled": true
     },
     "puppeteer": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "description": "Web browser automation",
+      "enabled": false
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users"],
+      "description": "File system operations", 
       "enabled": false
     }
   }

@@ -376,17 +376,35 @@ def execute_tool_sync(tool_name: str, tool_input: Dict[str, Any]) -> str:
         try:
             mcp_tool_names = list_mcp_tools()
             if tool_name in mcp_tool_names:
-                # Run the async function in the current event loop
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # If we're already in an event loop, create a task
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(asyncio.run, execute_mcp_tool(tool_name, tool_input))
-                        return future.result()
-                else:
-                    # No event loop running, we can use asyncio.run
-                    return asyncio.run(execute_mcp_tool(tool_name, tool_input))
+                # Proper event loop handling for MCP tools
+                try:
+                    # Try to get the current event loop
+                    loop = asyncio.get_running_loop()
+                    # If we're in an async context, we can't use asyncio.run
+                    raise RuntimeError("Cannot use asyncio.run from within an event loop")
+                except RuntimeError:
+                    # No event loop running or we're in one - use asyncio.run
+                    try:
+                        return asyncio.run(execute_mcp_tool(tool_name, tool_input))
+                    except RuntimeError as e:
+                        if "cannot be called from a running event loop" in str(e):
+                            # We're in an async context, use ThreadPoolExecutor
+                            import concurrent.futures
+                            import threading
+                            
+                            def run_in_new_loop():
+                                new_loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(new_loop)
+                                try:
+                                    return new_loop.run_until_complete(execute_mcp_tool(tool_name, tool_input))
+                                finally:
+                                    new_loop.close()
+                            
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(run_in_new_loop)
+                                return future.result(timeout=30)  # 30 second timeout
+                        else:
+                            raise e
         except Exception as e:
             logger.error(f"Error executing MCP tool {tool_name}: {e}")
             return f"Error executing MCP tool {tool_name}: {str(e)}"

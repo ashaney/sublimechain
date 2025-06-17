@@ -9,13 +9,13 @@
     "puppeteer": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
-      "description": "Web browser automation with Puppeteer",
+      "description": "Web browser automation",
       "enabled": false
     },
     "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users"],
-      "description": "File system operations",
+      "description": "File system operations", 
       "enabled": false
     },
     "brave-search": {
@@ -26,6 +26,24 @@
       },
       "description": "Brave search API integration",
       "enabled": false
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      },
+      "description": "GitHub repository and issue management",
+      "enabled": true
+    },
+    "tavily": {
+      "command": "node",
+      "args": ["./tavily-mcp/build/index.js"],
+      "env": {
+        "TAVILY_API_KEY": ""
+      },
+      "description": "Advanced web search and research with Tavily",
+      "enabled": true
     }
   }
 }

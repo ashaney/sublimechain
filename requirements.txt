@@ -21,3 +21,8 @@ validators
 pyautogui
 Pillow
 e2b-code-interpreter
+
+# SublimeChain enhanced dependencies
+mem0ai
+openai  # Required for Mem0
+qdrant-client  # Optional for Mem0 vector storage

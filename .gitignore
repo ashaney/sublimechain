@@ -1,9 +1,21 @@
-# Environment variables
+# Environment variables and API keys
 .env
 .env.local
 .env.development
 .env.test
 .env.production
+.env.*
+
+# API key files and configs with secrets
+*api_key*
+*API_KEY*
+*secret*
+*SECRET*
+*token*
+*TOKEN*
+config_with_keys.json
+secrets.json
+auth.json
 
 # Python
 __pycache__/
@@ -80,7 +92,7 @@ uv.lock
 .dmypy.json
 dmypy.json
 
-# ThinkChain specific files
+# SublimeChain/ThinkChain specific files
 *.db
 *.sqlite
 *.sqlite3
@@ -88,6 +100,22 @@ test.db
 database.db
 mcp_data/
 server_data/
+
+# MCP configs with API keys (keep template versions)
+*_config_with_keys.json
+*_config_private.json
+
+
+# Memory storage and caches
+memory_cache/
+mem0_cache/
+qdrant_storage/
+vector_db/
+
+# Tavily MCP server
+tavily-mcp/node_modules/
+tavily-mcp/.env
+tavily-mcp/config.json
 
 # Tool output and temporary files
 tool_output/
@@ -169,4 +197,6 @@ $RECYCLE.BIN/
 *.ori
 *.orig
 *.tmp
-
+mcp_config.json
+mcp_config.json
+mcp_config.json

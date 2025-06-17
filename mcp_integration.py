@@ -52,7 +52,6 @@ class MCPServer:
         self.config = config
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
-        self._cleanup_lock = asyncio.Lock()
         self.tools: List[MCPTool] = []
         self.is_initialized = False
     
@@ -144,7 +143,6 @@ class MCPServer:
         original_tool_name = tool_name.replace(f"mcp_{self.name}_", "")
         
         try:
-            logger.info(f"Executing MCP tool {original_tool_name} on server {self.name}")
             result = await self.session.call_tool(original_tool_name, arguments)
             
             # Convert result to string format expected by our system
@@ -154,19 +152,49 @@ class MCPServer:
                 return str(result)
                 
         except Exception as e:
+            # Check if it's a connection error - try to reconnect once
+            error_type = type(e).__name__
+            if error_type in ["ClosedResourceError", "ConnectionError", "BrokenPipeError"]:
+                logger.warning(f"MCP session closed for {self.name}, attempting to reconnect...")
+                try:
+                    # Clean up the old session
+                    await self.cleanup()
+                    # Reinitialize the server
+                    if await self.initialize():
+                        # Retry the tool execution once
+                        result = await self.session.call_tool(original_tool_name, arguments)
+                        
+                        if isinstance(result, dict):
+                            return json.dumps(result, indent=2)
+                        else:
+                            return str(result)
+                    else:
+                        raise RuntimeError(f"Failed to reconnect to MCP server {self.name}")
+                except Exception as retry_e:
+                    logger.error(f"Reconnection failed for {self.name}: {retry_e}")
+                    raise RuntimeError(f"MCP server {self.name} connection lost and reconnection failed: {retry_e}")
+            
             logger.error(f"Error executing MCP tool {tool_name}: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Exception args: {e.args}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             raise
     
     async def cleanup(self):
-        """Clean up server resources"""
-        async with self._cleanup_lock:
-            try:
+        """Gracefully shutdown MCP server connection"""
+        try:
+            # Clean shutdown of exit stack (manages session + stdio)
+            if hasattr(self, 'exit_stack'):
                 await self.exit_stack.aclose()
-                self.session = None
-                self.is_initialized = False
-                logger.info(f"Cleaned up MCP server {self.name}")
-            except Exception as e:
-                logger.error(f"Error during cleanup of MCP server {self.name}: {e}")
+        except Exception as e:
+            # Log cleanup errors but don't fail - they're usually harmless during shutdown
+            pass
+        finally:
+            self.session = None
+            self.is_initialized = False
+            # Reset the exit stack for potential reinitilization
+            self.exit_stack = AsyncExitStack()
 
 
 class MCPManager:

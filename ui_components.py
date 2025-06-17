@@ -35,6 +35,8 @@ try:
     from prompt_toolkit.completion import WordCompleter
     from prompt_toolkit.history import InMemoryHistory
     from prompt_toolkit.shortcuts import confirm
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.keys import Keys
     PROMPT_TOOLKIT_AVAILABLE = True
 except ImportError:
     PROMPT_TOOLKIT_AVAILABLE = False
@@ -279,13 +281,30 @@ class EnhancedConsole:
     
     def get_input(self, prompt_text: str = "Enter command", 
                   completer_words: Optional[List[str]] = None) -> str:
-        """Get user input with optional autocomplete"""
-        if PROMPT_TOOLKIT_AVAILABLE and completer_words:
-            completer = WordCompleter(completer_words, ignore_case=True)
+        """Get user input with intuitive key bindings"""
+        if PROMPT_TOOLKIT_AVAILABLE:
+            # Set up custom key bindings
+            bindings = KeyBindings()
+            
+            @bindings.add(Keys.ControlM)  # Enter key
+            def _(event):
+                """Enter sends the command"""
+                event.app.exit(result=event.app.current_buffer.text)
+            
+            @bindings.add(Keys.ControlJ)  # Ctrl+Enter 
+            def _(event):
+                """Ctrl+Enter adds a new line"""
+                event.current_buffer.insert_text('\n')
+            
             return prompt(
                 f"{prompt_text}: ",
-                completer=completer,
-                history=self.history
+                history=self.history,
+                multiline=True,
+                mouse_support=False,  # Disable mouse capture to allow terminal scrolling
+                complete_style=None,
+                completer=None,
+                auto_suggest=None,
+                key_bindings=bindings,
             )
         elif RICH_AVAILABLE:
             return Prompt.ask(f"[bold blue]{prompt_text}[/bold blue]")
@@ -359,9 +378,27 @@ ui = EnhancedConsole()
 
 
 # Convenience functions for common operations
-def print_banner():
-    """Print the ThinkChain application banner"""
-    banner_text = """
+def print_banner(title: str = "ThinkChain", subtitle: str = "Claude Chat with Advanced Tool Integration & Thinking"):
+    """Print customizable application banner"""
+    
+    # ASCII art for SublimeChain
+    if "sublime" in title.lower():
+        banner_text = f"""
+·····························································································
+ ███████╗██╗   ██╗██████╗ ██╗     ██╗███╗   ███╗███████╗ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗ 
+ ██╔════╝██║   ██║██╔══██╗██║     ██║████╗ ████║██╔════╝██╔════╝██║  ██║██╔══██╗██║████╗  ██║ 
+ ███████╗██║   ██║██████╔╝██║     ██║██╔████╔██║█████╗  ██║     ███████║███████║██║██╔██╗ ██║ 
+ ╚════██║██║   ██║██╔══██╗██║     ██║██║╚██╔╝██║██╔══╝  ██║     ██╔══██║██╔══██║██║██║╚██╗██║ 
+ ███████║╚██████╔╝██████╔╝███████╗██║██║ ╚═╝ ██║███████╗╚██████╗██║  ██║██║  ██║██║██║ ╚████║ 
+ ╚══════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝╚═╝     ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ 
+                                                                                              
+                            🧠 To err is human, to learn, sublime 💭                            
+                            (a fork of ThinkChain by Martin Bowling)                                             
+·····························································································
+        """
+    else:
+        # Original ThinkChain banner
+        banner_text = f"""
 ╔═══════════════════════════════════════════════════════════════════╗
 ║  ████████╗██╗  ██╗██╗███╗   ██╗██╗  ██╗ ██████╗██╗  ██╗ █████╗ ██╗███╗   ██╗  ║
 ║  ╚══██╔══╝██║  ██║██║████╗  ██║██║ ██╔╝██╔════╝██║  ██║██╔══██╗██║████╗  ██║  ║
@@ -370,13 +407,14 @@ def print_banner():
 ║     ██║   ██║  ██║██║██║ ╚████║██║  ██╗╚██████╗██║  ██║██║  ██║██║██║ ╚████║  ║
 ║     ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝  ║
 ║                                                                               ║
-║          🧠 Claude Chat with Advanced Tool Integration & Thinking 💭          ║
+║                          🧠 {subtitle} 💭                          ║
 ║                      Interleaved Thinking • Tool Streaming                    ║
 ╚═══════════════════════════════════════════════════════════════════════════════╝
-    """
+        """
     
     if RICH_AVAILABLE:
-        ui.console.print(banner_text, style="bold cyan")
+        # Use lime green color
+        ui.console.print(banner_text, style="bold bright_green")
     else:
         print(banner_text)
 
@@ -407,9 +445,11 @@ def print_initialization_progress(steps: List[str]):
 def format_command_suggestions(current_input: str) -> List[str]:
     """Generate command suggestions based on current input"""
     all_commands = [
-        '/help', '/tools', '/refresh', '/reload', '/config', '/status',
-        '/clear', '/exit', '/quit', 'help', 'tools', 'refresh', 'reload',
-        'config', 'status', 'clear', 'exit', 'quit'
+        '/help', '/tools', '/memory', '/remember', '/recall', '/search-memory', 
+        '/what-did-i', '/forget-memory', '/refresh', '/reload', '/config', 
+        '/status', '/clear', '/exit', '/quit', 'help', 'tools', 'memory',
+        'remember', 'recall', 'search-memory', 'what-did-i', 'forget-memory',
+        'refresh', 'reload', 'config', 'status', 'clear', 'exit', 'quit'
     ]
     
     if not current_input:
