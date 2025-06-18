@@ -287,7 +287,6 @@ MEM0_API_KEY=your_mem0_api_key_here
 # Optional for enhanced MCP servers
 GITHUB_PERSONAL_ACCESS_TOKEN=your_github_token_here
 TAVILY_API_KEY=your_tavily_api_key_here
-BRAVE_API_KEY=your_brave_search_api_key_here
 
 # Optional for Claude Code SDK (if using npm-installed version)
 # OPENAI_API_KEY=your_openai_key_here
@@ -298,7 +297,8 @@ BRAVE_API_KEY=your_brave_search_api_key_here
 - **Mem0 API**: [app.mem0.ai](https://app.mem0.ai) 
 - **GitHub Token**: GitHub Settings → Developer settings → Personal access tokens
 - **Tavily API**: [tavily.com](https://tavily.com)
-- **Brave Search**: [api.search.brave.com](https://api.search.brave.com)
+- **Notion API**: [developers.notion.com](https://developers.notion.com)
+- **Pushover API**: [pushover.net/api](https://pushover.net/api)
 
 ### Enhanced MCP Server Configuration
 Edit `mcp_config.json` for SublimeChain's enhanced capabilities:
@@ -447,8 +447,11 @@ uvx install mcp-server-sqlite
 # Install Puppeteer MCP server (requires Node.js)
 npm install -g @modelcontextprotocol/server-puppeteer
 
-# Install Brave Search MCP server  
-npm install -g @modelcontextprotocol/server-brave-search
+# Install Notion MCP server
+npm install -g @notionhq/notion-mcp-server
+
+# Install Pushover MCP server  
+npm install -g pushover-mcp
 ```
 
 #### 2. Configure MCP Server
@@ -480,13 +483,16 @@ Popular MCP servers you can integrate:
 
 **Web & Automation:**
 - `@modelcontextprotocol/server-puppeteer` - Browser automation
-- `@modelcontextprotocol/server-brave-search` - Web search
 - `@modelcontextprotocol/server-filesystem` - File operations
 
 **APIs & Services:**
 - `@modelcontextprotocol/server-github` - GitHub integration
 - `@modelcontextprotocol/server-slack` - Slack integration
 - `mcp-server-aws` - AWS operations
+
+**Productivity & Notifications:**
+- `@notionhq/notion-mcp-server` - Notion workspace integration
+- `pushover-mcp` - Pushover notifications and alerts
 
 #### 4. Test MCP Integration
 After adding a server, test it:

@@ -76,8 +76,8 @@ class SublimeMemory:
                 output_format="v1.1"  # Explicitly set output format to avoid deprecation
             )
             
-            # Provide clean user feedback without log spam
-            if result:
+            # Provide clean user feedback only if memory was actually stored
+            if result and self.is_available() and len(messages) > 0:
                 from ui_components import ui
                 ui.print("💾 [dim green]Memory stored[/dim green]")
             logger.debug(f"Stored conversation memory: {result}")
@@ -123,7 +123,7 @@ class SublimeMemory:
             })
             
             # Provide clean user feedback for tool pattern learning
-            if result:
+            if result and self.is_available():
                 from ui_components import ui
                 ui.print(f"🧠 [dim blue]Learned {tool_name} pattern[/dim blue]")
             logger.debug(f"Stored tool success: {tool_name}")

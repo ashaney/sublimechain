@@ -68,13 +68,16 @@ SublimeChain is the ultimate AI assistant with persistent memory, advanced codin
   - `MEM0_API_KEY` (required for memory)
   - `GITHUB_PERSONAL_ACCESS_TOKEN` (optional for GitHub MCP)
   - `TAVILY_API_KEY` (optional for Tavily MCP)
+  - `NOTION_API_TOKEN` (optional for Notion MCP - ntn_*** format)
+  - `PUSHOVER_API_TOKEN` (optional for Pushover MCP)
+  - `PUSHOVER_USER_KEY` (optional for Pushover MCP)
 
 **Available Tools Categories:**
 - Enhanced AI Tools: claudecode (advanced coding with memory patterns)
 - Web & Data: weathertool, duckduckgotool, webscrapertool
 - File & Development: filecreatortool, fileedittool, filecontentreadertool, createfolderstool, diffeditortool
 - Development & Package Management: uvpackagemanager, lintingtool, toolcreator
-- Enhanced MCP Servers: GitHub (enabled), Tavily (enabled), SQLite, Puppeteer, Filesystem, Brave Search
+- Enhanced MCP Servers: GitHub (enabled), Tavily (enabled), SQLite, Puppeteer, Filesystem, Notion, Pushover
 
 ## Tool Development
 
@@ -104,3 +107,11 @@ SublimeChain is the ultimate AI assistant with persistent memory, advanced codin
 - Support for uvx/npx installed MCP servers
 - Unified tool registry combines local, enhanced, and MCP tools
 - Test MCP with `python test_mcp.py`
+
+**Productivity MCP Servers:**
+- **Notion**: Create pages, query databases, manage workspace content
+  - Requires: Notion Integration token (`ntn_***`) and workspace access
+  - Usage: `create notion page`, `search notion database`, `update notion content`
+- **Pushover**: Send notifications and alerts to devices
+  - Requires: Pushover API token and user key
+  - Usage: `send pushover notification`, `send priority alert`

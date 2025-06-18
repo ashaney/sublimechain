@@ -53,7 +53,9 @@ class UVPackageManager(BaseTool):
         global_install = kwargs.get("global_install", False)
 
         try:
-            if command == "install":
+            if command == "help":
+                return self._show_help()
+            elif command == "install":
                 return self._install_packages(packages, requirements_file, global_install)
             elif command == "remove":
                 return self._remove_packages(packages)
@@ -72,7 +74,7 @@ class UVPackageManager(BaseTool):
             elif command == "run":
                 return self._run_script(kwargs.get("script"), packages)
             else:
-                return f"Unknown command: {command}"
+                return f"Unknown command: {command}. Use 'help' command to see available options."
         except Exception as e:
             logging.error(f"Error executing UV command: {e!s}")
             return f"Error: {e!s}"
@@ -135,3 +137,33 @@ class UVPackageManager(BaseTool):
             args.extend(["--with"] + packages)
         args.extend(["--", "python", script])
         return self._run_uv_command(args)
+    
+    def _show_help(self) -> str:
+        """Show available commands and usage examples"""
+        return """
+UV Package Manager Tool - Available Commands:
+
+📦 Package Management:
+  • install    - Install packages (with packages=["pkg1", "pkg2"])
+  • remove     - Remove packages (with packages=["pkg1", "pkg2"]) 
+  • update     - Update packages (with packages=["pkg1", "pkg2"] or all)
+  • list       - List installed packages
+
+🏗️ Project Management:
+  • init       - Initialize new project (with project_path="path")
+  • venv       - Create virtual environment (with project_path="path", python_version="3.11")
+  • compile    - Compile requirements.in to requirements.txt
+
+🐍 Python Management:
+  • python     - List or install Python versions (with python_version="3.11")
+
+🚀 Script Execution:
+  • run        - Run script with dependencies (with script="script.py", packages=["pkg1"])
+
+Examples:
+  {"command": "install", "packages": ["requests", "pandas"]}
+  {"command": "init", "project_path": "./my-project"} 
+  {"command": "venv", "python_version": "3.11"}
+  {"command": "python", "python_version": "3.12"}
+  {"command": "list"}
+        """

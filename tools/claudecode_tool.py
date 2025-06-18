@@ -115,7 +115,19 @@ class ClaudeCodeTool(BaseTool):
             
             # Store successful pattern in memory
             if self.memory and result and not result.startswith("Error:"):
-                asyncio.create_task(remember_success("claudecode", task, result))
+                try:
+                    # Try to get existing event loop
+                    loop = asyncio.get_running_loop()
+                    # We're in an async context, this shouldn't be called from sync context
+                    pass
+                except RuntimeError:
+                    # No running event loop, create a new one
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(remember_success("claudecode", task, result))
+                    finally:
+                        loop.close()
             
             return result
             
@@ -131,10 +143,21 @@ class ClaudeCodeTool(BaseTool):
             
         try:
             # Search for similar coding tasks
-            loop = asyncio.get_event_loop()
-            memories = loop.run_until_complete(
-                self.memory.recall_context(f"coding task: {task}", max_results=3)
-            )
+            try:
+                # Try to get existing event loop
+                loop = asyncio.get_running_loop()
+                # We're in an async context, this shouldn't be called from sync context
+                return ""
+            except RuntimeError:
+                # No running event loop, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    memories = loop.run_until_complete(
+                        self.memory.recall_context(f"coding task: {task}", max_results=3)
+                    )
+                finally:
+                    loop.close()
             
             if not memories:
                 return ""

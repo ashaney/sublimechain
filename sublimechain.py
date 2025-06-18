@@ -100,11 +100,16 @@ load_dotenv()
 # Enhanced configuration for SublimeChain
 CONFIG = {
     "model": "claude-sonnet-4-20250514",  # or "claude-opus-4-20250514"
-    "thinking_budget": 1024,  # 1024-16000
-    "max_tokens": 1024,
+    "lead_model": "claude-opus-4-20250514",    # Lead model for planning and synthesis
+    "worker_model": "claude-sonnet-4-20250514", # Worker model for execution and tool calls
+    "multi_model_mode": False,  # Enable lead/worker orchestration
+    "lead_turns": 1,           # Number of lead model turns for planning
+    "thinking_budget": 512,    # Reduced from 1024 to save tokens
+    "max_tokens": 512,         # Reduced from 1024 to save tokens
     "memory_enabled": True,
     "memory_search": True,
-    "memory_learning": True
+    "memory_learning": True,
+    "rate_limit_delay": 1.0    # Seconds between API calls
 }
 
 AVAILABLE_MODELS = [
@@ -231,13 +236,22 @@ def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
         duration = time.time() - start_time
         ui.print_tool_execution(name, "completed", duration)
         
-        # Store successful tool usage in memory
+        # Store successful tool usage in memory (async, non-blocking)
         if MEMORY.is_available() and CONFIG["memory_learning"]:
             try:
                 task_description = f"{name} with args: {json.dumps(args, default=str)[:100]}"
-                MEMORY.store_tool_success(name, task_description, result[:500], {"context": context})
+                # Run memory storage in background to avoid blocking the UI
+                import threading
+                def store_memory():
+                    try:
+                        MEMORY.store_tool_success(name, task_description, result[:500], {"context": context})
+                    except Exception as e:
+                        logger.warning(f"Failed to store tool success in memory: {e}")
+                
+                thread = threading.Thread(target=store_memory, daemon=True)
+                thread.start()
             except Exception as e:
-                logger.warning(f"Failed to store tool success in memory: {e}")
+                logger.warning(f"Failed to setup memory storage: {e}")
         
         return result
         
@@ -247,30 +261,57 @@ def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
         return f"<error>Tool {name} execution failed: {exc}</error>"
 
 # ────────────────────────────── 3. Memory-Enhanced Streaming loop ────────────────────── #
+def truncate_conversation_history(transcript: list[dict], max_messages: int = 20) -> list[dict]:
+    """Truncate conversation history to prevent context explosion"""
+    if len(transcript) <= max_messages:
+        return transcript
+    
+    # Keep system messages and recent messages
+    system_messages = [msg for msg in transcript if msg.get("role") == "system"]
+    recent_messages = transcript[-max_messages:]
+    
+    # Combine system + recent, avoiding duplicates
+    result = system_messages.copy()
+    for msg in recent_messages:
+        if msg not in result:
+            result.append(msg)
+    
+    return result
+
 def stream_once_with_memory(transcript: list[dict], user_input: str = "") -> dict:
     """
     Enhanced streaming with memory context injection.
     Provides memory-aware interactions and learns from each exchange.
     """
     try:
-        # Get memory context for this interaction (only for personal/info queries)
+        # Get memory context for this interaction (reduced frequency)
         memory_context = ""
-        if user_input and MEMORY.is_available():
-            # Only search memories for queries that seem to want personal information
-            personal_keywords = ["my", "me", "i am", "name", "occupation", "job", "work", "about me", "know about", "who am i"]
-            should_search = any(keyword in user_input.lower() for keyword in personal_keywords)
+        if user_input and MEMORY.is_available() and len(user_input) > 10:
+            # Only search memories for specific types of queries to reduce API calls
+            memory_keywords = ["remember", "recall", "told you", "discussed", "my", "me", "i am", "name", "preferences"]
+            should_search = any(keyword in user_input.lower() for keyword in memory_keywords)
             
-            if should_search:
+            # Also limit memory search frequency
+            import time
+            current_time = time.time()
+            if not hasattr(stream_once_with_memory, 'last_memory_search'):
+                stream_once_with_memory.last_memory_search = 0
+            
+            if should_search and (current_time - stream_once_with_memory.last_memory_search) > 30:  # 30 second cooldown
                 try:
                     memory_context = get_memory_context(user_input)
+                    stream_once_with_memory.last_memory_search = current_time
                     if memory_context:
                         ui.print(f"🧠 [italic blue]Using memory context...[/italic blue]")
                 except Exception as e:
                     logger.warning(f"Failed to get memory context: {e}")
                     memory_context = ""
         
+        # Truncate conversation history to prevent context explosion
+        truncated_transcript = truncate_conversation_history(transcript, max_messages=15)
+        
         # Inject memory context into the conversation if available
-        enhanced_transcript = transcript.copy()
+        enhanced_transcript = truncated_transcript.copy()
         if memory_context and enhanced_transcript:
             # Add memory context to the last user message
             last_message = enhanced_transcript[-1]
@@ -279,6 +320,15 @@ def stream_once_with_memory(transcript: list[dict], user_input: str = "") -> dic
                 if isinstance(content, str):
                     enhanced_content = f"{content}\n\n{memory_context}"
                     enhanced_transcript[-1] = {**last_message, "content": enhanced_content}
+        
+        # Add rate limiting to prevent API overload
+        import time
+        if hasattr(stream_once_with_memory, 'last_api_call'):
+            time_since_last = time.time() - stream_once_with_memory.last_api_call
+            if time_since_last < CONFIG["rate_limit_delay"]:
+                time.sleep(CONFIG["rate_limit_delay"] - time_since_last)
+        
+        stream_once_with_memory.last_api_call = time.time()
         
         # Create a streaming request with thinking enabled
         with client.messages.stream(
@@ -325,25 +375,37 @@ def stream_once_with_memory(transcript: list[dict], user_input: str = "") -> dic
             # Get the final message
             final_message = stream.get_final_message()
             
-            # Store conversation in memory only if it contains new information
-            if MEMORY.is_available() and CONFIG["memory_learning"]:
+            # Store conversation in memory with reduced frequency
+            if MEMORY.is_available() and CONFIG["memory_learning"] and len(user_input) > 20:
                 try:
                     assistant_response = "".join(response_content)
-                    # Only store if the response suggests learning something new
-                    # Skip responses like "I don't know" or memory-retrieval responses
-                    should_store = not any(phrase in assistant_response.lower() for phrase in [
-                        "i don't have", "i don't know", "based on the information i have",
-                        "according to what you've told me", "from what i can see"
-                    ])
+                    # Only store significant conversations to reduce memory bloat
+                    should_store = (
+                        len(assistant_response) > 50 and  # Meaningful responses only
+                        not any(phrase in assistant_response.lower() for phrase in [
+                            "i don't have", "i don't know", "based on the information i have",
+                            "according to what you've told me", "from what i can see",
+                            "hello", "hi there", "how can i help"
+                        ])
+                    )
                     
                     if should_store:
-                        conversation_messages = [
-                            {"role": "user", "content": user_input},
-                            {"role": "assistant", "content": assistant_response}
-                        ]
-                        MEMORY.store_conversation(conversation_messages, "sublime_chat")
+                        # Store in background thread to avoid blocking
+                        import threading
+                        def store_memory():
+                            try:
+                                conversation_messages = [
+                                    {"role": "user", "content": user_input},
+                                    {"role": "assistant", "content": assistant_response}
+                                ]
+                                MEMORY.store_conversation(conversation_messages, "sublime_chat")
+                            except Exception as e:
+                                logger.warning(f"Background memory storage failed: {e}")
+                        
+                        thread = threading.Thread(target=store_memory, daemon=True)
+                        thread.start()
                 except Exception as e:
-                    logger.warning(f"Failed to store conversation in memory: {e}")
+                    logger.warning(f"Failed to setup memory storage: {e}")
             
             # Check if there are tool uses that need to be handled
             tool_uses = [block for block in final_message.content if block.type == 'tool_use']
@@ -386,6 +448,9 @@ def stream_once_with_memory(transcript: list[dict], user_input: str = "") -> dic
                 })
                 
                 ui.print("\n🔄 [bold blue]Continuing with tool results...[/bold blue]\n")
+                # Add rate limiting between recursive calls
+                import time
+                time.sleep(0.5)  # Brief pause to avoid rapid API calls
                 # Continue the conversation with tool results - this should trigger more thinking
                 return stream_once_with_memory(enhanced_transcript, user_input)
             
@@ -492,8 +557,11 @@ def show_help_command():
         "/refresh": "Refresh tool discovery (local + MCP)",
         "/status": "Show system status and configuration",
         "/clear": "Clear the screen",
-        "/config": "Show/edit configuration (model, thinking, memory)",
+        "/config": "Show/edit configuration (model, thinking, memory, multi-model)",
         "/config model <name>": "Change Claude model (sonnet/opus)",
+        "/config multi-model <on|off>": "Toggle lead/worker model orchestration", 
+        "/config lead-model <name>": "Set lead model for planning",
+        "/config worker-model <name>": "Set worker model for execution",
         "/config thinking <1024-16000>": "Change thinking token budget",
         "/config memory <on|off>": "Toggle memory features",
         "/forget": "Clear memory for current session",
@@ -546,9 +614,18 @@ def show_status_command():
     ui.print_markdown(status_info)
 
 def show_config_command():
-    """Enhanced config display command with memory settings"""
+    """Enhanced config display command with memory and multi-model settings"""
+    multi_model_status = "✅ Enabled" if CONFIG['multi_model_mode'] else "❌ Disabled"
+    current_model_info = CONFIG['model']
+    if CONFIG['multi_model_mode']:
+        current_model_info = f"Multi-Model Mode (📋 {CONFIG['lead_model']} → 🔧 {CONFIG['worker_model']})"
+    
     config_data = {
-        "Model": CONFIG['model'],
+        "Current Mode": current_model_info,
+        "Multi-Model Orchestration": multi_model_status,
+        "Lead Model": f"📋 {CONFIG['lead_model']} (planning & synthesis)",
+        "Worker Model": f"🔧 {CONFIG['worker_model']} (execution & tools)",
+        "Lead Turns": CONFIG['lead_turns'],
         "Thinking Budget": f"{CONFIG['thinking_budget']} tokens",
         "Max Tokens": CONFIG['max_tokens'],
         "Memory Enabled": "✅ Yes" if CONFIG['memory_enabled'] else "❌ No",
@@ -559,9 +636,14 @@ def show_config_command():
     
     ui.print_panel(
         "\n".join([f"{k}: {v}" for k, v in config_data.items()]) + 
-        "\n\n💡 Use /config model <model_name> to change model" +
-        "\n💡 Use /config thinking <1024-16000> to change thinking budget" +
-        "\n💡 Use /config memory <on|off> to toggle memory features",
+        "\n\n💡 Multi-Model Commands:" +
+        "\n   /config multi-model <on|off> - Toggle orchestration" +
+        "\n   /config lead-model <model> - Set planning model" +
+        "\n   /config worker-model <model> - Set execution model" +
+        "\n💡 Other Commands:" +
+        "\n   /config model <model> - Change single model" +
+        "\n   /config thinking <1024-16000> - Change thinking budget" +
+        "\n   /config memory <on|off> - Toggle memory features",
         "SublimeChain Configuration",
         "info"
     )
@@ -604,6 +686,61 @@ def handle_config_command(args):
         except ValueError:
             ui.print_error("Invalid number", args[1])
             
+    elif args[0] == "multi-model":
+        if len(args) < 2:
+            ui.print_error("Usage", "/config multi-model <on|off>")
+            return
+        
+        if args[1].lower() in ["on", "true", "yes", "1", "enable"]:
+            CONFIG["multi_model_mode"] = True
+            ui.print_success("🎭 Multi-model orchestration enabled")
+            ui.print(f"📋 Lead: {CONFIG['lead_model']} → 🔧 Worker: {CONFIG['worker_model']}")
+        elif args[1].lower() in ["off", "false", "no", "0", "disable"]:
+            CONFIG["multi_model_mode"] = False
+            ui.print_success("Multi-model orchestration disabled")
+        else:
+            ui.print_error("Invalid option", "Use 'on' or 'off'")
+    
+    elif args[0] == "lead-model":
+        if len(args) < 2:
+            ui.print_error("Usage", "/config lead-model <model_name>")
+            ui.print(f"Available models: {', '.join(AVAILABLE_MODELS)}")
+            return
+        
+        new_model = args[1]
+        if new_model == "sonnet":
+            new_model = "claude-sonnet-4-20250514"
+        elif new_model == "opus":
+            new_model = "claude-opus-4-20250514"
+        
+        if new_model not in AVAILABLE_MODELS:
+            ui.print_error("Unknown model", new_model)
+            ui.print(f"Available models: {', '.join(AVAILABLE_MODELS)}")
+            return
+        
+        CONFIG["lead_model"] = new_model
+        ui.print_success(f"📋 Lead model changed to: {new_model}")
+    
+    elif args[0] == "worker-model":
+        if len(args) < 2:
+            ui.print_error("Usage", "/config worker-model <model_name>")
+            ui.print(f"Available models: {', '.join(AVAILABLE_MODELS)}")
+            return
+        
+        new_model = args[1]
+        if new_model == "sonnet":
+            new_model = "claude-sonnet-4-20250514"
+        elif new_model == "opus":
+            new_model = "claude-opus-4-20250514"
+        
+        if new_model not in AVAILABLE_MODELS:
+            ui.print_error("Unknown model", new_model)
+            ui.print(f"Available models: {', '.join(AVAILABLE_MODELS)}")
+            return
+        
+        CONFIG["worker_model"] = new_model
+        ui.print_success(f"🔧 Worker model changed to: {new_model}")
+    
     elif args[0] == "memory":
         if len(args) < 2:
             ui.print_error("Usage", "/config memory <on|off>")
@@ -623,7 +760,7 @@ def handle_config_command(args):
             ui.print_error("Invalid option", "Use 'on' or 'off'")
     else:
         ui.print_error("Unknown config option", args[0])
-        ui.print("Available options: model, thinking, memory")
+        ui.print("Available options: model, multi-model, lead-model, worker-model, thinking, memory")
 
 def handle_forget_command():
     """Clear memory for current session"""
