@@ -99,13 +99,15 @@ sudo npm install -g pushover-mcp-v2
 print_status "Installing optional MCP servers..."
 sudo npm install -g @modelcontextprotocol/server-puppeteer
 sudo npm install -g @modelcontextprotocol/server-filesystem
+# @modelcontextprotocol/server-fetch is Python-based (uvx), not npm
 
 # Install Python-based MCP servers via uvx
 print_status "Installing Python-based MCP servers..."
 if command -v uvx &> /dev/null; then
     uvx --help > /dev/null 2>&1 && uvx install mcp-server-sqlite || print_warning "uvx install failed for mcp-server-sqlite"
+    uvx --help > /dev/null 2>&1 && uvx install mcp-server-fetch || print_warning "uvx install failed for mcp-server-fetch"
 else
-    print_warning "uvx not available yet, SQLite MCP server will be installed on first use"
+    print_warning "uvx not available yet, Python MCP servers will be installed on first use"
 fi
 
 print_success "MCP servers installed"

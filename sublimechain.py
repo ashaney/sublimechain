@@ -262,17 +262,52 @@ def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
 
 # ────────────────────────────── 3. Memory-Enhanced Streaming loop ────────────────────── #
 def truncate_conversation_history(transcript: list[dict], max_messages: int = 20) -> list[dict]:
-    """Truncate conversation history to prevent context explosion"""
+    """Truncate conversation history to prevent context explosion while preserving tool_use/tool_result pairs"""
     if len(transcript) <= max_messages:
         return transcript
     
-    # Keep system messages and recent messages
+    # Keep system messages
     system_messages = [msg for msg in transcript if msg.get("role") == "system"]
     recent_messages = transcript[-max_messages:]
     
-    # Combine system + recent, avoiding duplicates
-    result = system_messages.copy()
+    # Fix orphaned tool_result blocks by removing them if their tool_use is missing
+    cleaned_recent = []
     for msg in recent_messages:
+        if msg.get("role") == "user" and isinstance(msg.get("content"), list):
+            # Check for tool_result blocks
+            content_blocks = []
+            for block in msg.get("content", []):
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    tool_use_id = block.get("tool_use_id")
+                    # Look for corresponding tool_use in previous assistant message
+                    found_tool_use = False
+                    if cleaned_recent:
+                        prev_msg = cleaned_recent[-1]
+                        if prev_msg.get("role") == "assistant" and isinstance(prev_msg.get("content"), list):
+                            for prev_block in prev_msg.get("content", []):
+                                if (isinstance(prev_block, dict) and 
+                                    prev_block.get("type") == "tool_use" and 
+                                    prev_block.get("id") == tool_use_id):
+                                    found_tool_use = True
+                                    break
+                    
+                    # Only keep tool_result if we found its tool_use
+                    if found_tool_use:
+                        content_blocks.append(block)
+                    # Skip orphaned tool_result blocks
+                else:
+                    content_blocks.append(block)
+            
+            # Update message content if we have any blocks
+            if content_blocks:
+                msg = {**msg, "content": content_blocks}
+                cleaned_recent.append(msg)
+        else:
+            cleaned_recent.append(msg)
+    
+    # Combine system + cleaned recent messages
+    result = system_messages.copy()
+    for msg in cleaned_recent:
         if msg not in result:
             result.append(msg)
     
