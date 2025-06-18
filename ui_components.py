@@ -324,16 +324,16 @@ class EnhancedConsole:
             f" │ ⏱️ {minutes}m"
         )
         
-        # Enhanced prompt with stats below input
+        # Enhanced prompt with stats above input (visible immediately)
         try:
+            # Show stats first, then clean prompt
+            print(f"\n{stats_line}")
             result = prompt(
                 "> ",
                 history=self.history,
                 complete_style="column", 
                 wrap_lines=True
             )
-            # Display stats after input is complete
-            print(f"{stats_line}")
             return result
         except (KeyboardInterrupt, EOFError):
             return ""
