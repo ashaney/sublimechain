@@ -76,10 +76,8 @@ class SublimeMemory:
                 output_format="v1.1"  # Explicitly set output format to avoid deprecation
             )
             
-            # Provide clean user feedback only if memory was actually stored
-            if result and self.is_available() and len(messages) > 0:
-                from ui_components import ui
-                ui.print("💾 [dim green]Memory stored[/dim green]")
+            # Memory stored silently for clean UI experience
+            # Verbose feedback disabled for better UX
             logger.debug(f"Stored conversation memory: {result}")
             
         except Exception as e:
@@ -122,10 +120,8 @@ class SublimeMemory:
                 "success": True
             })
             
-            # Provide clean user feedback for tool pattern learning
-            if result and self.is_available():
-                from ui_components import ui
-                ui.print(f"🧠 [dim blue]Learned {tool_name} pattern[/dim blue]")
+            # Tool pattern learned silently for clean UI experience
+            # Verbose feedback disabled for better UX
             logger.debug(f"Stored tool success: {tool_name}")
             
         except Exception as e:
@@ -158,10 +154,8 @@ class SublimeMemory:
                 output_format="v1.1"
             )
             
-            # Provide clean feedback for explicit learning
-            if result:
-                from ui_components import ui
-                ui.print(f"📚 [dim yellow]Stored learning: {category}[/dim yellow]")
+            # Learning stored silently for clean UI experience
+            # Verbose feedback disabled for better UX
             logger.debug(f"Stored learning: {category}")
             
         except Exception as e:

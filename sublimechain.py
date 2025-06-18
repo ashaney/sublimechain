@@ -174,7 +174,7 @@ def initialize_tools_with_progress():
             tool_discovery = get_tool_discovery()
             local_count = len(tool_discovery.discovered_tools)
         except Exception as e:
-            logger.warning(f"Local tool discovery failed: {e}")
+            logger.debug(f"Local tool discovery failed: {e}")
             local_count = 0
         
         # MCP integration
@@ -182,7 +182,7 @@ def initialize_tools_with_progress():
             total_tools = asyncio.run(initialize_tool_discovery())
             mcp_count = total_tools - local_count
         except Exception as e:
-            logger.warning(f"MCP initialization failed: {e}")
+            logger.debug(f"MCP initialization failed: {e}")
             total_tools = local_count
             mcp_count = 0
         
@@ -190,7 +190,7 @@ def initialize_tools_with_progress():
         try:
             tools = get_claude_tools()
         except Exception as e:
-            logger.warning(f"Tool registry build failed: {e}")
+            logger.debug(f"Tool registry build failed: {e}")
             tools = []
         
         return tools, local_count, mcp_count
@@ -418,7 +418,7 @@ def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
                     thread = threading.Thread(target=store_memory, daemon=True)
                     thread.start()
                 except Exception as e:
-                    logger.warning(f"Failed to setup memory storage: {e}")
+                    logger.debug(f"Failed to setup memory storage: {e}")
         
         return result
         
@@ -599,12 +599,12 @@ def stream_once_with_memory(transcript: list[dict], user_input: str = "") -> dic
                                 ]
                                 MEMORY.store_conversation(conversation_messages, "sublime_chat")
                             except Exception as e:
-                                logger.warning(f"Background memory storage failed: {e}")
+                                logger.debug(f"Background memory storage failed: {e}")
                         
                         thread = threading.Thread(target=store_memory, daemon=True)
                         thread.start()
                 except Exception as e:
-                    logger.warning(f"Failed to setup memory storage: {e}")
+                    logger.debug(f"Failed to setup memory storage: {e}")
             
             # Check if there are tool uses that need to be handled
             tool_uses = [block for block in final_message.content if block.type == 'tool_use']

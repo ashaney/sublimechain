@@ -53,7 +53,7 @@ class ToolDiscovery:
         self.discovered_tools.clear()
         
         if not self.tools_dir.exists():
-            logger.warning(f"Tools directory {self.tools_dir} does not exist")
+            logger.debug(f"Tools directory {self.tools_dir} does not exist")
             return {}
             
         # Add tools directory to Python path if not already there
@@ -88,7 +88,7 @@ class ToolDiscovery:
                             self.discovered_tools[tool_instance.name] = obj
                             logger.info(f"Discovered tool: {tool_instance.name}")
                         else:
-                            logger.warning(f"Tool {name} failed validation")
+                            logger.debug(f"Tool {name} failed validation")
                             
             except Exception as e:
                 logger.error(f"Error importing {module_name}: {e}")

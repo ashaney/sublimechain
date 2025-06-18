@@ -58,7 +58,7 @@ class MCPServer:
     async def initialize(self) -> bool:
         """Initialize the MCP server connection"""
         if not MCP_AVAILABLE:
-            logger.warning(f"MCP not available, skipping server {self.name}")
+            logger.debug(f"MCP not available, skipping server {self.name}")
             return False
             
         if not self.config.get('enabled', False):
@@ -155,7 +155,7 @@ class MCPServer:
             # Check if it's a connection error - try to reconnect once
             error_type = type(e).__name__
             if error_type in ["ClosedResourceError", "ConnectionError", "BrokenPipeError"]:
-                logger.warning(f"MCP session closed for {self.name}, attempting to reconnect...")
+                logger.debug(f"MCP session closed for {self.name}, reconnecting silently...")
                 try:
                     # Clean up the old session
                     await self.cleanup()
@@ -210,7 +210,7 @@ class MCPManager:
         """Load MCP server configuration"""
         config_file = Path(self.config_path)
         if not config_file.exists():
-            logger.warning(f"MCP config file {self.config_path} not found")
+            logger.debug(f"MCP config file {self.config_path} not found")
             return {"mcpServers": {}}
         
         try:
