@@ -279,6 +279,65 @@ class EnhancedConsole:
         md = Markdown(markdown_text)
         self.console.print(md)
     
+    def print_session_stats(self, stats: Dict[str, Any]):
+        """Print session statistics in a beautiful format"""
+        if not RICH_AVAILABLE:
+            print(f"Session Stats: {stats}")
+            return
+            
+        # Calculate session duration
+        duration = time.time() - stats.get("start_time", time.time())
+        hours = int(duration // 3600)
+        minutes = int((duration % 3600) // 60)
+        duration_str = f"{hours:02d}:{minutes:02d}" if hours > 0 else f"{minutes:02d}m"
+        
+        # Create stats table
+        table = Table(title="📊 Session Statistics", box=ROUNDED, show_header=False)
+        table.add_column("Metric", style="bold cyan", width=20)
+        table.add_column("Value", style="green", width=15)
+        table.add_column("Icon", width=5)
+        
+        # Add rows
+        table.add_row("Duration", duration_str, "⏱️")
+        table.add_row("API Calls", str(stats.get("api_calls", 0)), "🔄")
+        table.add_row("Tool Calls", str(stats.get("tool_calls", 0)), "🔧")
+        table.add_row("Successful Tools", str(stats.get("successful_tools", 0)), "✅")
+        table.add_row("Failed Tools", str(stats.get("failed_tools", 0)), "❌")
+        table.add_row("Memories Created", str(stats.get("memories_created", 0)), "🧠")
+        
+        self.console.print(table)
+
+    def get_input_with_stats(self, prompt_text: str, session_stats: Dict[str, Any]) -> str:
+        """Enhanced input with session stats like Claude Code"""
+        if not PROMPT_TOOLKIT_AVAILABLE:
+            return input(f"{prompt_text}: ")
+        
+        # Calculate quick stats for status line
+        duration = time.time() - session_stats.get("start_time", time.time())
+        minutes = int(duration // 60)
+        
+        # Create status line like Claude Code
+        stats_line = (
+            f"🔧 Tools: {session_stats.get('successful_tools', 0)}"
+            f" │ 🔄 API: {session_stats.get('api_calls', 0)}"
+            f" │ 🧠 Memories: {session_stats.get('memories_created', 0)}"
+            f" │ ⏱️ {minutes}m"
+        )
+        
+        # Enhanced prompt with stats below input
+        try:
+            result = prompt(
+                "> ",
+                history=self.history,
+                complete_style="column", 
+                wrap_lines=True
+            )
+            # Display stats after input is complete
+            print(f"{stats_line}")
+            return result
+        except (KeyboardInterrupt, EOFError):
+            return ""
+
     def get_input(self, prompt_text: str = "Enter command", 
                   completer_words: Optional[List[str]] = None) -> str:
         """Get user input with intuitive key bindings"""

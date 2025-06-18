@@ -127,6 +127,19 @@ client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 # Initialize memory manager
 MEMORY = get_memory_manager("sublime_user")
 
+# Session stats tracking
+SESSION_STATS = {
+    "start_time": time.time(),
+    "tool_calls": 0,
+    "api_calls": 0,
+    "thinking_tokens_used": 0,
+    "response_tokens_used": 0,
+    "successful_tools": 0,
+    "failed_tools": 0,
+    "memories_created": 0,
+    "conversations": 0
+}
+
 # ────────────────────────────── Helper Functions ─────────────────────────────── #
 def get_memory_stats_safe() -> Dict:
     """Safely get memory stats"""
@@ -369,8 +382,11 @@ def _should_remember_conversation(user_input: str, assistant_response: str) -> b
     return False
 
 def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
-    """Enhanced tool execution with memory integration"""
+    """Enhanced tool execution with memory integration and stats tracking"""
     start_time = time.time()
+    
+    # Track tool call
+    SESSION_STATS["tool_calls"] += 1
     
     # Show tool execution start
     ui.print_tool_execution(name, "executing")
@@ -381,10 +397,14 @@ def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
         duration = time.time() - start_time
         ui.print_tool_execution(name, "completed", duration)
         
+        # Track successful tool
+        SESSION_STATS["successful_tools"] += 1
+        
         # Store successful tool usage in memory ONLY if it's valuable (async, non-blocking)
         if MEMORY.is_available() and CONFIG["memory_learning"]:
             if _should_remember_tool_usage(name, args, result, context):
                 ui.print(f"🧠 [dim blue]Learned {name} pattern[/dim blue]")
+                SESSION_STATS["memories_created"] += 1
                 try:
                     task_description = f"{name} with args: {json.dumps(args, default=str)[:100]}"
                     # Run memory storage in background to avoid blocking the UI
@@ -405,6 +425,7 @@ def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
     except Exception as exc:
         duration = time.time() - start_time
         ui.print_tool_execution(name, "failed", duration)
+        SESSION_STATS["failed_tools"] += 1
         return f"<error>Tool {name} execution failed: {exc}</error>"
 
 # ────────────────────────────── 3. Memory-Enhanced Streaming loop ────────────────────── #
@@ -512,6 +533,9 @@ def stream_once_with_memory(transcript: list[dict], user_input: str = "") -> dic
         
         stream_once_with_memory.last_api_call = time.time()
         
+        # Track API call
+        SESSION_STATS["api_calls"] += 1
+        
         # Create a streaming request with thinking enabled
         with client.messages.stream(
             model=CONFIG["model"],
@@ -564,6 +588,7 @@ def stream_once_with_memory(transcript: list[dict], user_input: str = "") -> dic
                     
                     if _should_remember_conversation(user_input, assistant_response):
                         ui.print(f"🧠 [dim blue]Learned conversation pattern[/dim blue]")
+                        SESSION_STATS["memories_created"] += 1
                         # Store in background thread to avoid blocking
                         import threading
                         def store_memory():
@@ -741,6 +766,7 @@ def show_help_command():
         "/forget": "Clear ALL memories (with confirmation)",
         "/forget-type <type>": "Clear memories by type (conversation, tool_success, etc)",
         "/forget-old <days>": "Clear memories older than X days",
+        "/stats": "Show detailed session statistics",
         "/exit": "Exit SublimeChain"
     }
     
@@ -1240,8 +1266,8 @@ def main():
     # Main conversation loop
     while True:
         try:
-            # Get user input with clean typing experience
-            user_input = ui.get_input("Enter command")
+            # Get user input with enhanced stats display
+            user_input = ui.get_input_with_stats("SublimeChain", SESSION_STATS)
             
             # Handle empty input
             if not user_input.strip():
@@ -1288,6 +1314,8 @@ def main():
                     handle_forget_type_command(args)
                 elif command == 'forget-old':
                     handle_forget_old_command(args)
+                elif command == 'stats':
+                    ui.print_session_stats(SESSION_STATS)
                 elif command in ['exit', 'quit', 'q']:
                     ui.print("👋 Thanks for using SublimeChain!")
                     break
@@ -1304,6 +1332,7 @@ def main():
             
             # Regular conversation
             transcript.append({"role": "user", "content": user_input})
+            SESSION_STATS["conversations"] += 1
             
             ui.print("")  # Add some space
             
