@@ -104,7 +104,7 @@ CONFIG = {
     "worker_model": "claude-sonnet-4-20250514", # Worker model for execution and tool calls
     "multi_model_mode": False,  # Enable lead/worker orchestration
     "lead_turns": 1,           # Number of lead model turns for planning
-    "thinking_budget": 512,    # Reduced from 1024 to save tokens
+    "thinking_budget": 1024,   # Minimum allowed by API
     "max_tokens": 512,         # Reduced from 1024 to save tokens
     "memory_enabled": True,
     "memory_search": True,

@@ -86,30 +86,45 @@ else
     print_success "uv already installed"
 fi
 
-# Install MCP servers globally
+# Install MCP servers (only the ones that are enabled and exist)
 print_status "Installing MCP servers..."
+
+# Install npm-based MCP servers (only enabled ones)
+print_status "Installing npm-based MCP servers..."
 sudo npm install -g @modelcontextprotocol/server-github
 sudo npm install -g @notionhq/notion-mcp-server  
 sudo npm install -g pushover-mcp-v2
-sudo npm install -g @modelcontextprotocol/server-sqlite
+
+# Install optional MCP servers (disabled by default but available)
+print_status "Installing optional MCP servers..."
 sudo npm install -g @modelcontextprotocol/server-puppeteer
+sudo npm install -g @modelcontextprotocol/server-filesystem
+
+# Install Python-based MCP servers via uvx
+print_status "Installing Python-based MCP servers..."
+if command -v uvx &> /dev/null; then
+    uvx --help > /dev/null 2>&1 && uvx install mcp-server-sqlite || print_warning "uvx install failed for mcp-server-sqlite"
+else
+    print_warning "uvx not available yet, SQLite MCP server will be installed on first use"
+fi
+
 print_success "MCP servers installed"
 
 # Clone SublimeChain repository (if not already present)
 print_status "Setting up SublimeChain..."
-if [ ! -d "$HOME/thinkchain" ]; then
+if [ ! -d "$HOME/sublimechain" ]; then
     print_status "Repository not found. You'll need to either:"
-    echo "  1. Clone from GitHub: git clone https://github.com/YOUR_USERNAME/thinkchain.git"
+    echo "  1. Clone from GitHub: git clone https://github.com/ashaney/sublimechain.git"
     echo "  2. Upload files via SCP from your local machine"
     echo ""
     echo "For SCP upload, run this from your LOCAL machine:"
-    echo "  scp -i ~/.ssh/sublime_ed25519 -P XXXX -r /path/to/thinkchain sublime@YOUR_SERVER_IP:~/"
+    echo "  scp -i ~/.ssh/sublime_ed25519 -P XXXX -r /path/to/sublimechain sublime@YOUR_SERVER_IP:~/"
     echo ""
-    read -p "Press Enter when you have the thinkchain directory in your home folder..."
+    read -p "Press Enter when you have the sublimechain directory in your home folder..."
 fi
 
-if [ -d "$HOME/thinkchain" ]; then
-    cd $HOME/thinkchain
+if [ -d "$HOME/sublimechain" ]; then
+    cd $HOME/sublimechain
     print_success "Found thinkchain directory"
     
     # Create .env file if it doesn't exist
@@ -134,12 +149,12 @@ DO_NOT_TRACK=1
 ANALYTICS_DISABLED=1
 EOF
         print_warning "Created .env template - YOU MUST EDIT IT WITH YOUR API KEYS!"
-        print_warning "Edit with: nano ~/.env or nano ~/thinkchain/.env"
+        print_warning "Edit with: nano ~/.env or nano ~/sublimechain/.env"
     else
         print_success ".env file already exists"
     fi
 else
-    print_error "thinkchain directory not found! Please clone/upload the repository first."
+    print_error "sublimechain directory not found! Please clone/upload the repository first."
     exit 1
 fi
 
@@ -151,7 +166,7 @@ print_success "byobu enabled by default"
 # Create persistent byobu session for SublimeChain
 print_status "Creating persistent SublimeChain session..."
 if ! byobu list-sessions 2>/dev/null | grep -q "sublime"; then
-    byobu new-session -d -s sublime -c "$HOME/thinkchain"
+    byobu new-session -d -s sublime -c "$HOME/sublimechain"
     print_success "Created 'sublime' byobu session"
 else
     print_success "SublimeChain byobu session already exists"
@@ -162,9 +177,9 @@ print_status "Adding 'sublime' command alias..."
 if ! grep -q "alias sublime=" "$HOME/.bashrc"; then
     echo "" >> "$HOME/.bashrc"
     echo "# SublimeChain aliases" >> "$HOME/.bashrc"
-    echo "alias sublime='cd ~/thinkchain && uv run sublimechain.py'" >> "$HOME/.bashrc"
+    echo "alias sublime='cd ~/sublimechain && uv run sublimechain.py'" >> "$HOME/.bashrc"
     echo "alias sublime-attach='byobu attach-session -t sublime'" >> "$HOME/.bashrc"
-    echo "alias sublime-session='cd ~/thinkchain && byobu attach-session -t sublime'" >> "$HOME/.bashrc"
+    echo "alias sublime-session='cd ~/sublimechain && byobu attach-session -t sublime'" >> "$HOME/.bashrc"
     print_success "Added sublime aliases to .bashrc"
 else
     print_success "sublime aliases already exist in .bashrc"
@@ -178,7 +193,7 @@ fi
 
 # Test SublimeChain dependencies
 print_status "Testing SublimeChain setup..."
-cd "$HOME/thinkchain"
+cd "$HOME/sublimechain"
 if uv run python -c "import anthropic; print('✅ Anthropic SDK available')" 2>/dev/null; then
     print_success "SublimeChain dependencies look good!"
 else
@@ -190,7 +205,7 @@ print_success "🎉 SublimeChain VPS setup complete!"
 print_success "=================================================="
 echo ""
 echo "📋 Next steps:"
-echo "  1. Edit your API keys: nano ~/thinkchain/.env"
+echo "  1. Edit your API keys: nano ~/sublimechain/.env"
 echo "  2. Reload your shell: source ~/.bashrc"
 echo "  3. Test SublimeChain: sublime"
 echo "  4. Or attach to session: sublime-session"
@@ -198,7 +213,7 @@ echo ""
 echo "🔧 Useful commands:"
 echo "  sublime              - Run SublimeChain directly"
 echo "  sublime-attach       - Attach to existing byobu session"  
-echo "  sublime-session      - CD to thinkchain and attach to session"
+echo "  sublime-session      - CD to sublimechain and attach to session"
 echo "  byobu attach -t sublime - Alternative attach command"
 echo ""
 echo "📱 Mobile workflow:"

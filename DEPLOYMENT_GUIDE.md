@@ -129,11 +129,11 @@ sudo npm install -g pushover-mcp
 ```bash
 # Clone your repository
 cd ~
-git clone https://github.com/YOUR_USERNAME/thinkchain.git  # Replace with your repo
-cd thinkchain
+git clone https://github.com/ashaney/sublimechain.git
+cd sublimechain
 
 # Or upload via SCP if not in git:
-# scp -i ~/.ssh/sublime_ed25519 -P 2847 -r /path/to/thinkchain sublime@YOUR_SERVER_IP:~/
+# scp -i ~/.ssh/sublime_ed25519 -P 2847 -r /path/to/sublimechain sublime@YOUR_SERVER_IP:~/
 
 # Set up environment
 cp .env.example .env
@@ -180,7 +180,7 @@ byobu new-session -d -s sublime
 byobu attach-session -t sublime
 
 # Run SublimeChain
-cd ~/thinkchain
+cd ~/sublimechain
 uv run sublimechain.py
 
 # Test basic functionality
@@ -248,7 +248,7 @@ ssh -i ~/.ssh/sublime_ed25519 -p 2847 sublime@YOUR_SERVER_IP
 ### Start SublimeChain Session:
 ```bash
 byobu attach-session -t sublime
-cd ~/thinkchain
+cd ~/sublimechain
 uv run sublimechain.py
 ```
 
