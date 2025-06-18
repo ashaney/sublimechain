@@ -223,6 +223,151 @@ def get_memory_context(user_input: str) -> str:
         logger.warning(f"Memory context retrieval failed: {e}")
         return ""
 
+def _should_remember_tool_usage(name: str, args: dict, result: str, context: str) -> bool:
+    """Determine if a tool usage is worth remembering based on value and reusability"""
+    
+    # Never remember simple/common tools that don't provide lasting value
+    trivial_tools = {
+        'duckduckgotool',  # Generic web searches
+        'webscrapertool',   # One-time content fetching
+        'mcp_fetch_fetch',  # One-time content fetching
+        'filecontentreadertool',  # One-time file reads
+        'weathertool'  # Temporal data
+    }
+    
+    if name in trivial_tools:
+        return False
+    
+    # Handle Brave search tools specifically
+    if name.startswith('mcp_brave-search_'):
+        # local_search often fails due to API limits - don't remember failed attempts
+        if 'local_search' in name and ('error' in result.lower() or len(result) < 50):
+            return False
+        
+        # Only remember searches that seem like preferences/research patterns
+        search_terms = str(args).lower()
+        valuable_searches = [
+            'prefer', 'favorite', 'best', 'recommend', 'how to', 'tutorial',
+            'learn', 'guide', 'documentation', 'api', 'error', 'problem',
+            'comparison', 'versus', 'review', 'alternative'
+        ]
+        
+        # For web_search, be more selective since it's reliable
+        if 'web_search' in name:
+            if not any(term in search_terms for term in valuable_searches):
+                return False
+        
+        # For local_search, only remember if it actually succeeded AND is reusable
+        if 'local_search' in name:
+            if not any(term in search_terms for term in valuable_searches + ['near me', 'nearby', 'area']):
+                return False
+    
+    # Handle other search tools
+    elif 'search' in name.lower():
+        search_terms = str(args).lower()
+        valuable_searches = [
+            'prefer', 'favorite', 'best', 'recommend', 'how to', 'tutorial',
+            'learn', 'guide', 'documentation', 'api', 'error', 'problem'
+        ]
+        if not any(term in search_terms for term in valuable_searches):
+            return False
+    
+    # Always remember configuration/setup tools
+    valuable_tools = {
+        'claudecode',  # Coding patterns worth remembering
+        'createfolderstool',  # Project structure patterns
+        'diffeditortool',  # Code editing patterns
+        'uvpackagemanager',  # Package management patterns
+    }
+    
+    if name in valuable_tools:
+        return True
+    
+    # Remember Notion/productivity tools (project/workflow patterns)
+    if 'notion' in name.lower() or 'pushover' in name.lower():
+        return True
+    
+    # Remember MCP tools that modify state or create content
+    if name.startswith('mcp_') and any(action in name.lower() for action in [
+        'create', 'update', 'delete', 'write', 'edit', 'add', 'remove'
+    ]):
+        return True
+    
+    # Check result quality - only remember if substantial and useful
+    if len(result) < 100:  # Too short to be valuable
+        return False
+    
+    # Skip error results
+    if result.startswith('<error>') or 'error' in result.lower()[:50]:
+        return False
+    
+    # Skip very long results (probably one-time data dumps)
+    if len(result) > 2000:
+        return False
+    
+    # Check context for personal preferences or reusable patterns
+    if context and any(keyword in context.lower() for keyword in [
+        'prefer', 'like', 'favorite', 'always', 'usually', 'workflow',
+        'setup', 'configure', 'pattern', 'template', 'standard'
+    ]):
+        return True
+    
+    # Default: don't remember (be conservative)
+    return False
+
+def _should_remember_conversation(user_input: str, assistant_response: str) -> bool:
+    """Determine if a conversation is worth remembering for future context"""
+    
+    # Skip short conversations
+    if len(user_input) < 30 or len(assistant_response) < 100:
+        return False
+    
+    # Skip generic responses
+    generic_phrases = [
+        "i don't have", "i don't know", "based on the information",
+        "according to what", "hello", "hi there", "how can i help",
+        "sure, i can help", "let me help", "i'll help you"
+    ]
+    
+    if any(phrase in assistant_response.lower()[:200] for phrase in generic_phrases):
+        return False
+    
+    # Remember conversations about preferences, learning, and personal info
+    valuable_topics = [
+        # Personal information
+        'my name is', 'i am', 'i work', 'i live', 'i prefer', 'i like',
+        'i usually', 'my favorite', 'my background', 'about me',
+        
+        # Preferences and workflows
+        'prefer', 'workflow', 'process', 'standard', 'template',
+        'always do', 'usually do', 'best practice', 'convention',
+        
+        # Learning and insights
+        'learned', 'discovered', 'figured out', 'solution', 'pattern',
+        'mistake', 'lesson', 'insight', 'remember that', 'note that',
+        
+        # Technical setup/configuration
+        'configuration', 'setup', 'environment', 'api key', 'token',
+        'credential', 'setting', 'config', 'install', 'deploy'
+    ]
+    
+    combined_text = f"{user_input} {assistant_response}".lower()
+    
+    if any(topic in combined_text for topic in valuable_topics):
+        return True
+    
+    # Remember conversations with explicit learning/memory requests
+    memory_requests = [
+        'remember', 'note', 'save', 'store', 'keep in mind',
+        'for future', 'next time', 'going forward'
+    ]
+    
+    if any(request in user_input.lower() for request in memory_requests):
+        return True
+    
+    # Default: don't remember
+    return False
+
 def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
     """Enhanced tool execution with memory integration"""
     start_time = time.time()
@@ -236,22 +381,24 @@ def run_tool_with_memory(name: str, args: dict, context: str = "") -> str:
         duration = time.time() - start_time
         ui.print_tool_execution(name, "completed", duration)
         
-        # Store successful tool usage in memory (async, non-blocking)
+        # Store successful tool usage in memory ONLY if it's valuable (async, non-blocking)
         if MEMORY.is_available() and CONFIG["memory_learning"]:
-            try:
-                task_description = f"{name} with args: {json.dumps(args, default=str)[:100]}"
-                # Run memory storage in background to avoid blocking the UI
-                import threading
-                def store_memory():
-                    try:
-                        MEMORY.store_tool_success(name, task_description, result[:500], {"context": context})
-                    except Exception as e:
-                        logger.warning(f"Failed to store tool success in memory: {e}")
-                
-                thread = threading.Thread(target=store_memory, daemon=True)
-                thread.start()
-            except Exception as e:
-                logger.warning(f"Failed to setup memory storage: {e}")
+            if _should_remember_tool_usage(name, args, result, context):
+                ui.print(f"🧠 [dim blue]Learned {name} pattern[/dim blue]")
+                try:
+                    task_description = f"{name} with args: {json.dumps(args, default=str)[:100]}"
+                    # Run memory storage in background to avoid blocking the UI
+                    import threading
+                    def store_memory():
+                        try:
+                            MEMORY.store_tool_success(name, task_description, result[:500], {"context": context})
+                        except Exception as e:
+                            logger.warning(f"Failed to store tool success in memory: {e}")
+                    
+                    thread = threading.Thread(target=store_memory, daemon=True)
+                    thread.start()
+                except Exception as e:
+                    logger.warning(f"Failed to setup memory storage: {e}")
         
         return result
         
@@ -410,21 +557,13 @@ def stream_once_with_memory(transcript: list[dict], user_input: str = "") -> dic
             # Get the final message
             final_message = stream.get_final_message()
             
-            # Store conversation in memory with reduced frequency
-            if MEMORY.is_available() and CONFIG["memory_learning"] and len(user_input) > 20:
+            # Store conversation in memory ONLY if it's valuable for future context
+            if MEMORY.is_available() and CONFIG["memory_learning"]:
                 try:
                     assistant_response = "".join(response_content)
-                    # Only store significant conversations to reduce memory bloat
-                    should_store = (
-                        len(assistant_response) > 50 and  # Meaningful responses only
-                        not any(phrase in assistant_response.lower() for phrase in [
-                            "i don't have", "i don't know", "based on the information i have",
-                            "according to what you've told me", "from what i can see",
-                            "hello", "hi there", "how can i help"
-                        ])
-                    )
                     
-                    if should_store:
+                    if _should_remember_conversation(user_input, assistant_response):
+                        ui.print(f"🧠 [dim blue]Learned conversation pattern[/dim blue]")
                         # Store in background thread to avoid blocking
                         import threading
                         def store_memory():
@@ -599,7 +738,9 @@ def show_help_command():
         "/config worker-model <name>": "Set worker model for execution",
         "/config thinking <1024-16000>": "Change thinking token budget",
         "/config memory <on|off>": "Toggle memory features",
-        "/forget": "Clear memory for current session",
+        "/forget": "Clear ALL memories (with confirmation)",
+        "/forget-type <type>": "Clear memories by type (conversation, tool_success, etc)",
+        "/forget-old <days>": "Clear memories older than X days",
         "/exit": "Exit SublimeChain"
     }
     
@@ -803,9 +944,17 @@ def handle_forget_command():
         ui.print_error("Memory not available", "Memory system is not initialized")
         return
     
-    # This is a placeholder - you'd need to implement memory clearing in the memory manager
-    ui.print_success("🧠 Memory cleared for current session")
-    ui.print("Note: Full memory management features coming soon!")
+    if ui.confirm("🧠 Clear ALL memories? This cannot be undone!"):
+        try:
+            success = MEMORY.clear_all_memories()
+            if success:
+                ui.print_success("🧠 All memories cleared")
+            else:
+                ui.print_error("Failed to clear memories", "Check memory system status")
+        except Exception as e:
+            ui.print_error("Memory clear failed", str(e))
+    else:
+        ui.print("Memory clear cancelled")
 
 def handle_remember_command(args):
     """Handle /remember command to explicitly store memories"""
@@ -824,7 +973,12 @@ def handle_remember_command(args):
     
     success = MEMORY.explicit_remember(content, category)
     if success:
+        stats = get_memory_stats_safe()
+        total = stats.get('total_memories', 0)
         ui.print_success(f"📝 Memory stored: {content[:100]}...")
+        ui.print(f"📊 Total memories: {total}")
+        if total > 100:
+            ui.print_warning(f"⚠️  High memory count ({total}). Consider /forget to clear old memories.")
     else:
         ui.print_error("Failed to store memory", "Check memory system status")
 
@@ -993,9 +1147,75 @@ def handle_forget_memory_command(args):
     if ui.confirm(f"Are you sure you want to delete memory {memory_id}?"):
         success = MEMORY.forget_memory(memory_id)
         if success:
+            stats = get_memory_stats_safe()
+            total = stats.get('total_memories', 0)
             ui.print_success(f"🗑️ Memory {memory_id} deleted")
+            ui.print(f"📊 Remaining memories: {total}")
         else:
             ui.print_error("Failed to delete memory", "Check memory ID and try again")
+
+def handle_forget_type_command(args):
+    """Handle /forget-type command to delete memories by type"""
+    if not MEMORY.is_available():
+        ui.print_error("Memory not available", "Memory system is not initialized")
+        return
+    
+    if not args:
+        ui.print_error("Usage", "/forget-type <type>")
+        ui.print("Examples: /forget-type conversation, /forget-type tool_success")
+        return
+    
+    memory_type = args[0]
+    
+    if ui.confirm(f"🗑️ Delete ALL memories of type '{memory_type}'? This cannot be undone!"):
+        try:
+            success = MEMORY.clear_memories_by_type(memory_type)
+            if success:
+                stats = get_memory_stats_safe()
+                total = stats.get('total_memories', 0)
+                ui.print_success(f"🗑️ Deleted all '{memory_type}' memories")
+                ui.print(f"📊 Remaining memories: {total}")
+            else:
+                ui.print_error("Failed to delete memories", "Check memory type and try again")
+        except Exception as e:
+            ui.print_error("Memory deletion failed", str(e))
+    else:
+        ui.print("Memory deletion cancelled")
+
+def handle_forget_old_command(args):
+    """Handle /forget-old command to delete old memories"""
+    if not MEMORY.is_available():
+        ui.print_error("Memory not available", "Memory system is not initialized")
+        return
+    
+    if not args:
+        ui.print_error("Usage", "/forget-old <days>")
+        ui.print("Examples: /forget-old 30, /forget-old 7")
+        return
+    
+    try:
+        days = int(args[0])
+        if days < 1:
+            ui.print_error("Invalid days", "Must be 1 or greater")
+            return
+    except ValueError:
+        ui.print_error("Invalid number", args[0])
+        return
+    
+    if ui.confirm(f"🗑️ Delete ALL memories older than {days} days? This cannot be undone!"):
+        try:
+            success = MEMORY.clear_old_memories(days)
+            if success:
+                stats = get_memory_stats_safe()
+                total = stats.get('total_memories', 0)
+                ui.print_success(f"🗑️ Deleted memories older than {days} days")
+                ui.print(f"📊 Remaining memories: {total}")
+            else:
+                ui.print_error("Failed to delete old memories", "Check the timeframe and try again")
+        except Exception as e:
+            ui.print_error("Memory deletion failed", str(e))
+    else:
+        ui.print("Memory deletion cancelled")
 
 # ────────────────────────────── 5. Main Interactive Loop ──────────────────── #
 def main():
@@ -1064,6 +1284,10 @@ def main():
                     handle_config_command(args)
                 elif command == 'forget':
                     handle_forget_command()
+                elif command == 'forget-type':
+                    handle_forget_type_command(args)
+                elif command == 'forget-old':
+                    handle_forget_old_command(args)
                 elif command in ['exit', 'quit', 'q']:
                     ui.print("👋 Thanks for using SublimeChain!")
                     break

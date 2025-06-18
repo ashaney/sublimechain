@@ -490,6 +490,204 @@ class SublimeMemory:
             logger.error(f"Failed to delete memory: {e}")
             return False
     
+    def clear_all_memories(self) -> bool:
+        """Delete all memories for this user using batch delete API"""
+        if not self.is_available():
+            return False
+            
+        try:
+            # First, get all memory IDs
+            all_memories_response = self.memory.get_all(
+                user_id=self.user_id,
+                version="v2",
+                output_format="v1.1",
+                page=1, 
+                page_size=1000  # Get all memories
+            )
+            
+            # Extract memories from paginated response
+            if isinstance(all_memories_response, dict) and "results" in all_memories_response:
+                results = all_memories_response["results"]
+                if isinstance(results, dict) and "results" in results:
+                    all_memories = results["results"]
+                else:
+                    all_memories = results if isinstance(results, list) else []
+            else:
+                all_memories = all_memories_response if isinstance(all_memories_response, list) else []
+            
+            if not all_memories:
+                logger.info("No memories found to delete")
+                return True
+            
+            # Extract memory IDs
+            memory_ids = []
+            for memory in all_memories:
+                if isinstance(memory, dict) and "id" in memory:
+                    memory_ids.append(memory["id"])
+            
+            if not memory_ids:
+                logger.info("No valid memory IDs found")
+                return True
+            
+            # Use batch delete API (max 1000 per request)
+            logger.info(f"Batch deleting {len(memory_ids)} memories...")
+            
+            # Format memory IDs correctly for batch delete
+            delete_memories = [{"memory_id": mid} for mid in memory_ids]
+            
+            # Process in batches of 1000
+            success_count = 0
+            for i in range(0, len(delete_memories), 1000):
+                batch = delete_memories[i:i+1000]
+                try:
+                    result = self.memory.batch_delete(batch)
+                    if result:
+                        success_count += len(batch)
+                        logger.info(f"Deleted batch of {len(batch)} memories")
+                    else:
+                        logger.error(f"Failed to delete batch of {len(batch)} memories")
+                except Exception as e:
+                    logger.error(f"Error deleting batch: {e}")
+                    
+            if success_count == len(delete_memories):
+                logger.info(f"Successfully deleted all {len(memory_ids)} memories")
+                return True
+            else:
+                logger.error(f"Only deleted {success_count}/{len(memory_ids)} memories")
+                return False
+            
+        except Exception as e:
+            logger.error(f"Failed to clear all memories: {e}")
+            return False
+    
+    def clear_memories_by_type(self, memory_type: str) -> bool:
+        """Delete all memories of a specific type (e.g., 'conversation', 'tool_success')"""
+        if not self.is_available():
+            return False
+            
+        try:
+            # Get memories of specific type
+            memories = self.search_memories_by_type(memory_type, max_results=1000)
+            
+            if not memories:
+                logger.info(f"No memories of type '{memory_type}' found")
+                return True
+            
+            # Extract memory IDs
+            memory_ids = [m.get("id") for m in memories if m.get("id")]
+            
+            if not memory_ids:
+                logger.info(f"No valid memory IDs found for type '{memory_type}'")
+                return True
+            
+            # Use batch delete API (max 1000 per request)
+            logger.info(f"Batch deleting {len(memory_ids)} memories of type '{memory_type}'...")
+            
+            # Format memory IDs correctly for batch delete
+            delete_memories = [{"memory_id": mid} for mid in memory_ids]
+            
+            # Process in batches of 1000
+            success_count = 0
+            for i in range(0, len(delete_memories), 1000):
+                batch = delete_memories[i:i+1000]
+                try:
+                    result = self.memory.batch_delete(batch)
+                    if result:
+                        success_count += len(batch)
+                        logger.info(f"Deleted batch of {len(batch)} memories")
+                    else:
+                        logger.error(f"Failed to delete batch of {len(batch)} memories")
+                except Exception as e:
+                    logger.error(f"Error deleting batch: {e}")
+                    
+            if success_count == len(delete_memories):
+                logger.info(f"Successfully deleted all {len(memory_ids)} memories of type '{memory_type}'")
+                return True
+            else:
+                logger.error(f"Only deleted {success_count}/{len(memory_ids)} memories of type '{memory_type}'")
+                return False
+            
+        except Exception as e:
+            logger.error(f"Failed to clear memories by type: {e}")
+            return False
+    
+    def clear_old_memories(self, days_old: int = 30) -> bool:
+        """Delete memories older than specified days"""
+        if not self.is_available():
+            return False
+            
+        try:
+            cutoff_date = datetime.now() - timedelta(days=days_old)
+            
+            # Get all memories and filter by date
+            all_memories_response = self.memory.get_all(
+                user_id=self.user_id,
+                version="v2",
+                output_format="v1.1",
+                page=1, 
+                page_size=1000
+            )
+            
+            # Extract memories from paginated response
+            if isinstance(all_memories_response, dict) and "results" in all_memories_response:
+                results = all_memories_response["results"]
+                if isinstance(results, dict) and "results" in results:
+                    all_memories = results["results"]
+                else:
+                    all_memories = results if isinstance(results, list) else []
+            else:
+                all_memories = all_memories_response if isinstance(all_memories_response, list) else []
+            
+            # Filter old memories
+            old_memory_ids = []
+            for memory in all_memories:
+                if isinstance(memory, dict):
+                    created_at_str = memory.get("created_at", "")
+                    try:
+                        # Parse the created_at timestamp
+                        if created_at_str:
+                            created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                            if created_at < cutoff_date:
+                                old_memory_ids.append(memory.get("id"))
+                    except Exception as e:
+                        logger.debug(f"Failed to parse date {created_at_str}: {e}")
+                        continue
+            
+            if not old_memory_ids:
+                logger.info(f"No memories older than {days_old} days found")
+                return True
+            
+            # Use batch delete API (max 1000 per request)
+            logger.info(f"Batch deleting {len(old_memory_ids)} memories older than {days_old} days...")
+            
+            # Format memory IDs correctly for batch delete
+            delete_memories = [{"memory_id": mid} for mid in old_memory_ids]
+            
+            # Process in batches of 1000
+            success_count = 0
+            for i in range(0, len(delete_memories), 1000):
+                batch = delete_memories[i:i+1000]
+                try:
+                    result = self.memory.batch_delete(batch)
+                    if result:
+                        success_count += len(batch)
+                        logger.info(f"Deleted batch of {len(batch)} memories")
+                    else:
+                        logger.error(f"Failed to delete batch of {len(batch)} memories")
+                except Exception as e:
+                    logger.error(f"Error deleting batch: {e}")
+                    
+            if success_count == len(delete_memories):
+                logger.info(f"Successfully deleted all {len(old_memory_ids)} old memories")
+                return True
+            else:
+                logger.error(f"Only deleted {success_count}/{len(old_memory_ids)} old memories")
+                return False
+            
+        except Exception as e:
+            logger.error(f"Failed to clear old memories: {e}")
+            return False
+    
     def recall_tool_patterns(self, tool_name: str) -> List[Dict]:
         """Get patterns for successful tool usage"""
         if not self.is_available():
